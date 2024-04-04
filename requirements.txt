@@ -1,0 +1,16 @@
+xarray==2022.10.0
+h5netcdf
+numpy
+matplotlib
+tqdm==4.64.1
+sklearn
+# ipywidgets==8.0.2
+jupyterlab
+ipywidgets
+icecream
+opencv-python-headless
+mmcv==1.7.1
+wandb
+torchmetrics
+segmentation-models-pytorch
+timm
