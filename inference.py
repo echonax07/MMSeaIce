@@ -1,12 +1,9 @@
-
-# # AutoICE - test model and prepare upload package
-# This notebook tests the 'best_model', created in the quickstart notebook,
-# with the tests scenes exempt of reference data.
-# The model outputs are stored per scene and chart in an xarray Dataset in individual Dataarrays.
-# The xarray Dataset is saved and compressed in an .nc file ready to be uploaded to the AI4EO.eu platform.
-# Finally, the scene chart inference is shown.
-#
-# The first cell imports necessary packages:
+__author__ = 'Muhammed Patel'
+__contributor__ = 'Xinwwei chen, Fernando Pena Cantu,Javier Turnes, Eddie Park'
+__copyright__ = ['university of waterloo']
+__contact__ = ['m32patel@uwaterloo.ca', 'xinweic@uwaterloo.ca']
+__version__ = '1.0.0'
+__date__ = '2024-04-05'
 
 # -- Built-in modules -- #
 import argparse

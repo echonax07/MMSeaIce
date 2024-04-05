@@ -1,3 +1,10 @@
+__author__ = 'Muhammed Patel'
+__contributor__ = 'Xinwwei chen, Fernando Pena Cantu,Javier Turnes, Eddie Park'
+__copyright__ = ['university of waterloo']
+__contact__ = ['m32patel@uwaterloo.ca', 'xinweic@uwaterloo.ca']
+__version__ = '1.0.0'
+__date__ = '2024-04-05'
+
 import torch
 from torch import nn
 import torch.nn.functional as F

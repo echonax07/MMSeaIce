@@ -4,12 +4,12 @@
 """Pytorch Dataset class for training. Function used in train.py."""
 
 # -- File info -- #
-__author__ = 'Andreas R. Stokholm'
-__contributors__ = 'Andrzej S. Kucik'
-__copyright__ = ['Technical University of Denmark', 'European Space Agency']
-__contact__ = ['stokholm@space.dtu.dk', 'andrzej.kucik@esa.int']
+__author__ = 'Muhammed Patel'
+__contributor__ = 'Xinwwei chen, Fernando Pena Cantu,Javier Turnes, Eddie Park'
+__copyright__ = ['university of waterloo']
+__contact__ = ['m32patel@uwaterloo.ca', 'xinweic@uwaterloo.ca']
 __version__ = '1.0.0'
-__date__ = '2022-10-17'
+__date__ = '2024-04-05'
 
 # -- Built-in modules -- #
 import os

@@ -4,13 +4,12 @@
 """Utilization resources."""
 
 # -- File info -- #
-__author__ = 'Andreas R. Stokholm'
-__contributors__ = ''
-__copyright__ = ['Technical University of Denmark', 'European Space Agency']
-__contact__ = ['stokholm@space.dtu.dk']
-__version__ = '0.1.0'
-__date__ = '2022-09-20'
-
+__author__ = 'Muhammed Patel'
+__contributor__ = 'Xinwwei chen, Fernando Pena Cantu,Javier Turnes, Eddie Park'
+__copyright__ = ['university of waterloo']
+__contact__ = ['m32patel@uwaterloo.ca', 'xinweic@uwaterloo.ca']
+__version__ = '1.0.0'
+__date__ = '2024-04-05'
 
 # Charts in the dataset
 CHARTS = ['SIC', 'SOD', 'FLOE']
