@@ -1,4 +1,39 @@
-# AI4ArcticSeaIceChallenge
+# Official code for MMSEAICE
+
+This repository contains the official code for the MMSEAICE project. It includes all the necessary scripts and configurations to reproduce our winning solution.
+
+## Key Features
+- Custom configuration system for flexible model setup
+- Integration with Weights & Biases (WandB) for experiment tracking
+- Comprehensive data visualization tools
+- Implements various strategies for enhanced accuracy, efficiency, and robustness:
+  - Input SAR variable downscaling
+  - Input feature selection
+  - Spatial-temporal encoding
+  - Optimized loss functions
+
+This solution achieved top performance in the competition, demonstrating its effectiveness in accurately predicting sea ice maps. The code provided here allows for reproduction of our results and serves as a strong baseline for further research in this domain.
+
+
+## Table of Contents
+- [Key Features](#key-features)
+- [Dependencies](#dependencies)
+- [Running the Code](#running-the-code)
+  - [Create a new environment](#create-a-new-environment)
+  - [Activating the environment](#activating-the-environment)
+  - [Requesting Interactive job](#requesting-interactive-job)
+  - [Submitting a Job](#submitting-a-job)
+- [Train the model](#train-the-model)
+- [Testing the model](#testing-the-model)
+- [Creating submission package](#creating-submission-package)
+- [Data visualization](#data-visualization)
+  - [Usage](#usage)
+  - [Visualize imagery & charts for a single scene (from NetCDF)](#visualize-imagery--charts-for-a-single-scene-from-netcdf)
+  - [Visualize imagery & charts for all scenes in a directory (from NetCDF)](#visualize-imagery--charts-for-all-scenes-in-a-directory-from-netcdf)
+  - [Export imagery & charts from NetCDF to file](#export-imagery--charts-from-netcdf-to-file)
+- [Acknowledgments](#acknowledgments)
+- [Bibliography](#bibliography)
+
 
 ## Dependencies
 The following packages and versions were used to develop and test the code along with the dependancies installed with pip:
@@ -18,35 +53,35 @@ The following packages and versions were used to develop and test the code along
 - mmcv==1.7.1
 - wandb
 
-## Cloning the repo:
+## Running the Code
 
-Clone this repo by using `git clone <link_to_repo>`
 
-## Create a new environment
+### Create a new environment
 
-COmpute canada does not have support for Conda environments. So we'll use the inbuilt [venv](https://docs.python.org/3/library/venv.html) module to create new environments.
+These sections are specific to running the code on compute canada or any other slurm based HPC. If you have different compute medium pls skip to [Train the model](#Train-the-model).
+
+
+By default, compute canada does not have support for Conda environments. So we'll use the inbuilt [venv](https://docs.python.org/3/library/venv.html) module to create new environments.
 
 The repo contains a [create_env.sh](create_env.sh) which will create a virtual environment for you in **compute canada**.
 
 To create a new environment ` bash create_env.sh <envname>`.
-<br/> This will create a new env in the `~/<envname>` folder, which is nothing but root folder.
+<br/> This will create a new env in the `~/<envname>` folder, at the root folder.
 
-## Activating the environment
+### Activating the environment
 
 To activate the env, use the command `source ~/<envname>/bin/activate`. 
 
-# Running the Code
 
 Running the code in compute canada can be done in two ways.
  1. Running the program interactively
- 2. Runnin the program as a job
+ 2. Running the program as a job
 
  We usually use the 1st method to test our code and some small visulization and the 2nd is to train the actual model
 
-## Requesting Interactive job
+### Requesting Interactive job
 
 To request the interactive job, run the following command
-
 
 `salloc --nodes 1 --time=2:30:0 --tasks-per-node=1 --mem=32G --account=def-dclausi --gpus-per-node=v100l:1 --cpus-per-task=6`
 
@@ -64,51 +99,47 @@ source ~/<envname>/bin/activate
 
 Now everthing is ready. Now it'll be like you're running the programs on your local computer, ofcourse there will be no GUI.
 
-## Submitting a Job
+### Submitting a Job
 
-TODO:
+to submit job run
 
-# Training the model
+`sbatch compute_canada/submit/train_infer.sh <path_to_config_file> <-wandb-project-name>`
 
-We modfified the code developed by the compettition organisers and added bunch of features such as follows
-## Preparing the config file
+## Train the model
 
-The config file is file in which all the configuration of training the model is specified. An eg. of config file is [setup1.py](configs/feature_variation/setup1.py)
+To start training the model, first creating a config file like [sic_mse.py](configs/sic_mse/sic_mse.py)
 
-The line `_base_ = ['../_base_/base.py']` specificifies the base config file to use. 
-
-Base config file stores all the default configuration and then a user can override the default configuration by creating a file like [setup1.py](configs/feature_variation/setup1.py). 
-
-This concept (code also) was stolen from [mmcv config](https://mmcv.readthedocs.io/en/latest/understand_mmcv/config.html) file structure. 
-
-## Running quickstart.py
-
-To run quickstart.py 
+ Then run the [quickstart.py](quickstart.py) with path of the config file. This trains the model along with logging the metrics to WandB.
 
 Run `quickstart.py <path_to_config_file.py> --wandb-project=<name_of_wandb_project> --workdir <path_to_a_folder>`
-
-This will take all the configurations from `path_to_config_file.py` and will log the run in the `<name_of_wandb_project>` on wandb.
 
 If `--workdir` is not specified, by default it will save the **model checkpoint**, **upload package** and **Inference on test images** in `workdir/config_file_name` <br>
 else it will save everything in the specified folder.
 
+Note: The concept of config was stolen from [mmcv config](https://mmcv.readthedocs.io/en/latest/understand_mmcv/config.html) file structure. 
 
-## Running test_upload.py
+## Testing the model
 
-To run test_upload.py
+To test the model on test scenes and produce the metrics used in the competetion,
+
+Run `python inference.py <path_to_config_file.py> <path to pytorch checkpoint file.pth>`
+
+## Creating submission package
+
+This script prepares the submission file for the competetition portal
 
 Run `test_upload.py <path_to_config_file.py> <path to pytorch checkpoint file.pth>` 
 
-
-
 ## Data visualization
-### Dependencies
-- cmocean
 
 ### Usage
-All visualization code in this repository (see also `vip_ai4arctic/visualization` repo) is in the `data_visualization` directory.
+All visualization code in this repository is in the `data_visualization` directory.
 
 The `vis_single_scene.ipynb` notebook provides an example visualization and link to the plotting function.
+
+![viz](assets/viz.png)
+
+This will plot the HH, HV channels along with the Ground truths: SIC, SOD, FLOE
 
 #### Visualize imagery & charts for a single scene (from NetCDF):
 `python r2t_vis.py {filepath.nc}`
@@ -118,3 +149,49 @@ The `vis_single_scene.ipynb` notebook provides an example visualization and link
 
 #### Export imagery & charts from NetCDF to file:
 `python export_data.py {in_dir} {out_dir}`
+
+## Winning solution configuration:
+
+The config file that helped us win the autoice competetion is avaliable at [sic_mse.py](configs/sic_mse/sic_mse.py)
+
+We also experimented with numerous configaration such as changing input channels, loss functions, architectures, optimisers, patch size etc and such experiments can be found in the [config folder](configs/). 
+
+## Acknowledgments
+
+We would like to thank the organizers of the AutoICE challenge for providing the dataset and oranising the competetition.
+
+## Bibliography
+
+If you use our code or find our work helpful, please consider citing:
+
+```bibtex
+@article{chen2024mmseaice,
+  title={MMSeaIce: a collection of techniques for improving sea ice mapping with a multi-task model},
+  author={Chen, Xinwei and Patel, Muhammed and Pena Cantu, Fernando J and Park, Jinman and Noa Turnes, Javier and Xu, Linlin and Scott, K Andrea and Clausi, David A},
+  journal={The Cryosphere},
+  volume={18},
+  number={4},
+  pages={1621--1632},
+  year={2024},
+  publisher={Copernicus GmbH}
+}
+
+@article{chen2023weakly,
+  title={Weakly Supervised Learning for Pixel-level Sea Ice Concentration Extraction using AI4Arctic Sea Ice Challenge Dataset},
+  author={Chen, Xinwei and Patel, Muhammed and Xu, Linlin and Chen, Yuhao and Scott, K Andrea and Clausi, David A},
+  journal={IEEE Geoscience and Remote Sensing Letters},
+  year={2023},
+  publisher={IEEE}
+}
+
+@article{chen2024comparative,
+  title={A comparative study of data input selection for deep learning-based automated sea ice mapping},
+  author={Chen, Xinwei and Cantu, Fernando J Pena and Patel, Muhammed and Xu, Linlin and Brubacher, Neil C and Scott, K Andrea and Clausi, David A},
+  journal={International Journal of Applied Earth Observation and Geoinformation},
+  volume={131},
+  pages={103920},
+  year={2024},
+  publisher={Elsevier}
+}
+
+```

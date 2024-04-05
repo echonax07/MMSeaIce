@@ -7,12 +7,12 @@
 from torchvision.models.resnet import BasicBlock
 from torch import nn
 from torchvision import models
-__author__ = 'Andreas R. Stokholm'
-__contributor__ = 'Andrzej S. Kucik'
-__copyright__ = ['Technical University of Denmark', 'European Space Agency']
-__contact__ = ['stokholm@space.dtu.dk', 'andrzej.kucik@esa.int']
-__version__ = '0.3.0'
-__date__ = '2022-09-20'
+__author__ = 'Muhammed Patel'
+__contributor__ = 'Xinwwei chen, Fernando Pena Cantu,Javier Turnes, Eddie Park'
+__copyright__ = ['university of waterloo']
+__contact__ = ['m32patel@uwaterloo.ca', 'xinweic@uwaterloo.ca']
+__version__ = '1.0.0'
+__date__ = '2024-04-05'
 
 
 # -- Third-party modules -- #
@@ -675,4 +675,3 @@ class UNet_sep_dec_mse(torch.nn.Module):
 		return {'SIC': self.regression_layer(x_expand_sic.permute(0,2,3,1)),
 				'SOD': self.sod_feature_map(x_expand_sod),
 				'FLOE': self.floe_feature_map(x_expand_floe)}
-
