@@ -14,3 +14,4 @@ wandb
 torchmetrics
 segmentation-models-pytorch
 timm
+seaborn

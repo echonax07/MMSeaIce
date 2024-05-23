@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import xarray as xr
+import pandas as pd
 from tqdm import tqdm
 from mmcv import mkdir_or_exist
 import wandb
@@ -25,6 +26,9 @@ import wandb
 from functions import chart_cbar, water_edge_plot_overlay, compute_metrics, water_edge_metric, class_decider
 from loaders import AI4ArcticChallengeTestDataset, get_variable_options
 from functions import slide_inference, batched_slide_inference
+from torchmetrics.functional.classification import multiclass_confusion_matrix
+import seaborn as sns
+from utils import GROUP_NAMES
 
 
 
@@ -54,18 +58,23 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
     net.load_state_dict(weights)
     print('Model successfully loaded.')
     experiment_name = osp.splitext(osp.basename(cfg.work_dir))[0]
-    artifact = wandb.Artifact(experiment_name, 'dataset')
+    artifact = wandb.Artifact(experiment_name+'_'+test_name, 'dataset')
     table = wandb.Table(columns=['ID', 'Image'])
 
     # - Stores the output and the reference pixels to calculate the scores after inference on all the scenes.
     output_class = {chart: torch.Tensor().to(device) for chart in train_options['charts']}
+    # Stores the flat ouputs of only one scene.
+    output_flat = {chart: torch.Tensor().to(device) for chart in train_options['charts']}
+    # Stores the flat outputs of all scene.
     outputs_flat = {chart: torch.Tensor().to(device) for chart in train_options['charts']}
+    # Stores the flat ground turth of only one scene. 
+    inf_y_flat = {chart: torch.Tensor().to(device) for chart in train_options['charts']}
+    # Stores the flat ground truth of all scenes
     inf_ys_flat = {chart: torch.Tensor().to(device) for chart in train_options['charts']}
-    # Outputs mask by train fill values
+    # Outputs mask by train fill values for only one scene
+    output_tfv_mask = {chart: torch.Tensor().to(device) for chart in train_options['charts']}
+    # Outputs mask by train fill values fo all scenes
     outputs_tfv_mask = {chart: torch.Tensor().to(device) for chart in train_options['charts']}
-
-
-
 
     # ### Prepare the scene list, dataset and dataloaders
 
@@ -73,7 +82,8 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
 
         train_options['test_list'] = test_list
         # The test data is stored in a separate folder inside the training data.
-        # upload_package = xr.Dataset()  # To store model outputs.
+        if train_options['save_nc_file']:
+            upload_package = xr.Dataset()  # To store model outputs.
         dataset = AI4ArcticChallengeTestDataset(
             options=train_options, files=train_options['test_list'], mode='test')
         asid_loader = torch.utils.data.DataLoader(
@@ -83,7 +93,8 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
     elif mode == 'val':
         train_options['test_list'] = test_list
         # The test data is stored in a separate folder inside the training data.
-        # upload_package = xr.Dataset()  # To store model outputs.
+        if train_options['save_nc_file']:
+            upload_package = xr.Dataset()  # To store model outputs.
         dataset = AI4ArcticChallengeTestDataset(
             options=train_options, files=train_options['test_list'], mode='train')
         asid_loader = torch.utils.data.DataLoader(
@@ -96,6 +107,11 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
         inference_name = 'inference_test'
 
     os.makedirs(osp.join(cfg.work_dir, inference_name), exist_ok=True)
+
+    # Store the scores obtained for each scene so we can see how each scene performs. 
+    results_per_scene = []
+
+    print('starting do inference on each scene')
     net.eval()
     for inf_x, inf_y, cfv_masks, tfv_mask, scene_name, original_size in tqdm(iterable=asid_loader,
                                                                total=len(train_options['test_list']), colour='green', position=0):
@@ -110,20 +126,6 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
             else:
                 output = net(inf_x)
 
-            # output storage as a flat tensor
-            # if test is False:
-            # for chart in train_options['charts']:
-            
-            # if test:
-            #     masks_int = masks.to(torch.uint8)
-            #     masks_int = torch.nn.functional.interpolate(masks_int.unsqueeze(
-            #         0).unsqueeze(0), size=original_size, mode='nearest').squeeze().squeeze()
-            #     masks = torch.gt(masks_int, 0)
-            #     tfv_mask = (inf_x.squeeze()[0, :, :] == train_options['train_fill_value']).squeeze()
-            #     tfv_mask = torch.nn.functional.interpolate(tfv_mask.type(torch.uint8).unsqueeze(
-            #         0).unsqueeze(0), size=original_size, mode='nearest').squeeze().squeeze().to(torch.bool)
-            # else:
-
             # Up sample the masks
             tfv_mask = torch.nn.functional.interpolate(tfv_mask.type(torch.uint8).unsqueeze(0).unsqueeze(0), size=original_size, mode='nearest').squeeze().squeeze().to(torch.bool)
             for chart in train_options['charts']:
@@ -132,6 +134,7 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
                     0).unsqueeze(0), size=original_size, mode='nearest').squeeze().squeeze()
                 cfv_masks[chart] = torch.gt(masks_int, 0)
 
+            # TODO: We should use class decider before up sampling the results. It is more data efficient. 
             # Upsample data
             if train_options['down_sample_scale'] != 1:
                 for chart in train_options['charts']:
@@ -149,35 +152,19 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
                     # if not test:
                     inf_y[chart] = torch.nn.functional.interpolate(inf_y[chart].unsqueeze(dim=0).unsqueeze(dim=0),
                                                                    size=original_size, mode='nearest').squeeze()
-
-        # for chart in train_options['charts']:
-        #     # check if the output is regression output, if yes, round the output to integer
-        #     # TODO class decider function in here
-        #     output[chart] = class_decider(output[chart], train_options, chart)
-        #     output[chart] = output[chart].cpu().numpy()
-        #     # if test:
-        #     #     upload_package[f"{scene_name}_{chart}"] = xr.DataArray(name=f"{scene_name}_{chart}", data=output[chart].astype('uint8'),
-        #     #                                                            dims=(f"{scene_name}_{chart}_dim0", f"{scene_name}_{chart}_dim1"))
-        #     # else:
-        #     inf_y[chart] = inf_y[chart].squeeze().cpu().numpy()
-
-        # output storage as a flat tensor
-        # if test is False:
-            # for chart in train_options['charts']:
-            #     outputs_flat[chart] = torch.cat(
-            #         (outputs_flat[chart], torch.tensor(output[chart][~masks[chart]]).to(device)))
-            #     outputs_tfv_mask[chart] = torch.cat(
-            #         (outputs_tfv_mask[chart], torch.tensor(output[chart])[~tfv_mask].to(device)))
-            #     inf_ys_flat[chart] = torch.cat((inf_ys_flat[chart], torch.tensor(inf_y[chart]
-            #                                     [~masks[chart]]).to(device, non_blocking=True)))
+      
         for chart in train_options['charts']:
             output_class[chart] = class_decider(output[chart], train_options, chart).detach()
-            outputs_flat[chart] = torch.cat(
-                        (outputs_flat[chart], output_class[chart][~cfv_masks[chart]]))
-            outputs_tfv_mask[chart] = torch.cat(
-                        (outputs_tfv_mask[chart], output_class[chart][~tfv_mask].to(device)))
-            inf_ys_flat[chart] = torch.cat(
-                        (inf_ys_flat[chart], inf_y[chart][~cfv_masks[chart]].to(device, non_blocking=True)))
+            if train_options['save_nc_file']:
+                upload_package[f"{scene_name}_{chart}"] = xr.DataArray(name=f"{scene_name}_{chart}",
+                                                                       data=output_class[chart].squeeze().cpu().numpy().astype('uint8'),
+                                                                       dims=(f"{scene_name}_{chart}_dim0", f"{scene_name}_{chart}_dim1"))
+            output_flat[chart] = output_class[chart][~cfv_masks[chart]] 
+            outputs_flat[chart] = torch.cat((outputs_flat[chart], output_flat[chart]))
+            output_tfv_mask[chart] = output_class[chart][~tfv_mask].to(device)
+            outputs_tfv_mask[chart] = torch.cat((outputs_tfv_mask[chart], outputs_tfv_mask[chart]))
+            inf_y_flat[chart] = inf_y[chart][~cfv_masks[chart]].to(device, non_blocking=True).float()
+            inf_ys_flat[chart] = torch.cat((inf_ys_flat[chart], inf_y_flat[chart]))
 
         for chart in train_options['charts']: 
             inf_y[chart] = inf_y[chart].cpu().numpy()
@@ -244,26 +231,71 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
         plt.close('all')
         table.add_data(scene_name, wandb.Image(f"{osp.join(cfg.work_dir,inference_name,scene_name)}.png"))
 
+        # Saving results per scene
+
+        
+        # Get the scores per scene
+        scene_combined_score, scene_scores = compute_metrics(true=inf_y_flat, pred=output_flat,
+                                                             charts=train_options['charts'],
+                                                             metrics=train_options['chart_metric_individual_scenes'],
+                                                             num_classes=train_options['n_classes'])
+        
+        scene_water_edge_accuarcy = water_edge_metric(output_tfv_mask, train_options)
+        
+        # Create table with results and log it into wandb b. 
+        # Add all the scores into a list and append it to results per scene. 
+        # This list with be the data for the table
+        scene_results = [x.item() for x in scene_scores.values()]
+        scene_results.insert(0, scene_combined_score.item())
+        scene_results.insert(0, scene_name)
+        scene_results.append(scene_water_edge_accuarcy.item())
+        results_per_scene.append(scene_results)
+
+        # Saving scene results on summary if  mode == 'test'
+
+        if mode == 'test':
+
+            wandb.run.summary[f"{'Test '+scene_name}/Best Combined Score"] = scene_combined_score
+
+            for chart in train_options['charts']:
+                wandb.run.summary[f"{'Test '+scene_name}/{chart} {train_options['chart_metric_individual_scenes'][chart]['func'].__name__}"] = scene_scores[chart]
+
+            wandb.run.summary[f"{'Test '+scene_name}/Water Consistency Accuarcy"] = scene_water_edge_accuarcy
+
+    print('inference done')
+    # Create wandb table to store results
+    scenes_results_table = wandb.Table(columns=['Scene', 'Combine Score', 'SIC', 'SOD', 'FLOE', 'Water Consistency Acccuracy'],
+                                       data=results_per_scene)
+    # Log table into wandb
+    wandb.run.log({mode+' results table': scenes_results_table})
+    print('done saving result per scene on wandb table')
 
     # compute combine score
     combined_score, scores = compute_metrics(true=inf_ys_flat, pred=outputs_flat, charts=train_options['charts'],
                                              metrics=train_options['chart_metric'], num_classes=train_options['n_classes'])
+    
+    # Release memory
+    torch.cuda.empty_cache()
 
+    print('done calculating overall resulsts. ')
     # compute water edge metric
     water_edge_accuarcy = water_edge_metric(outputs_tfv_mask, train_options)
     if train_options['compute_classwise_f1score']:
         from functions import compute_classwise_f1score
         classwise_scores = compute_classwise_f1score(true=inf_ys_flat, pred=outputs_flat,
                                                      charts=train_options['charts'], num_classes=train_options['n_classes'])
+        # Release memory
+        torch.cuda.empty_cache()
 
+    print('done computeing class wise scores.')
     if train_options['plot_confusion_matrix']:
-        from torchmetrics.functional.classification import multiclass_confusion_matrix
-        import seaborn as sns
-        from utils import GROUP_NAMES
+
 
         for chart in train_options['charts']:
             cm = multiclass_confusion_matrix(
                 preds=outputs_flat[chart], target=inf_ys_flat[chart], num_classes=train_options['n_classes'][chart])
+            # Release memory
+            torch.cuda.empty_cache()
             # Calculate percentages
             cm = cm.cpu().numpy()
             cm_percent = np.round(cm / cm.sum(axis=1)[:, np.newaxis] * 100, 2)
@@ -272,6 +304,7 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
             ax = sns.heatmap(cm_percent, annot=True, cmap='Blues')
             # Customize the plot
             class_names = list(GROUP_NAMES[chart].values())
+            class_names = [str(obj) for obj in class_names]
             class_names.append('255')
             tick_marks = np.arange(len(class_names)) + 0.5
             plt.xticks(tick_marks, class_names, rotation=45)
@@ -282,14 +315,39 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
 
             plt.xlabel('Predicted Labels')
             plt.ylabel('Actual Labels')
-            plt.title('Confusion Matrix')
+            plt.title(chart+" Confusion Matrix "+test_name)
             cbar = ax.collections[0].colorbar
             # cbar.set_ticks([0, .2, .75, 1])
             cbar.set_ticklabels(['0%', '20%', '40%', '60%', '80%', '100%'])
             mkdir_or_exist(f"{osp.join(cfg.work_dir)}/{test_name}")
             plt.savefig(f"{osp.join(cfg.work_dir)}/{test_name}/{chart}_confusion_matrix.png",
                         format='png', dpi=128, bbox_inches="tight")
+            
+            # Save figure in wandb. 
+            image = wandb.Image(plt)
+            wandb.log({chart+" Confusion Matrix "+test_name: image})
 
+            # Create a dataframe
+            df_cm = pd.DataFrame(cm_percent
+                                 
+                                 ).astype("float")
+
+            # Name the columns
+            df_cm.columns = class_names
+
+            # Name the rows
+            df_cm.index = class_names
+
+            print(df_cm)
+
+            tbl_cm = wandb.Table(data=df_cm)
+
+            # Wandb save into artifact
+            artifact_cm = wandb.Artifact('Confusio_Matrix_'+experiment_name+'_'+test_name+'_'+chart, 'confusion_matrix')
+            artifact_cm.add(tbl_cm, chart+'_Confusion_Matrix_'+experiment_name+'_'+test_name)
+            wandb.log_artifact(artifact_cm)
+
+    print('done ploting confusion matrix')
     wandb.run.summary[f"{test_name}/Best Combined Score"] = combined_score
     print(f"{test_name}/Best Combined Score = {combined_score}")
     for chart in train_options['charts']:
@@ -313,13 +371,13 @@ def test(mode: str, net: torch.nn.modules, checkpoint: str, device: str, cfg, te
     wandb.log_artifact(artifact)
 
     # # - Save upload_package with zlib compression.
-    # if test:
-    #     print('Saving upload_package. Compressing data with zlib.')
-    #     compression = dict(zlib=True, complevel=1)
-    #     encoding = {var: compression for var in upload_package.data_vars}
-    #     upload_package.to_netcdf(osp.join(cfg.work_dir, f'{experiment_name}_upload_package.nc'),
-    #                              # f'{osp.splitext(osp.basename(cfg))[0]}
-    #                              mode='w', format='netcdf4', engine='h5netcdf', encoding=encoding)
-    #     print('Testing completed.')
-    #     print("File saved succesfully at", osp.join(cfg.work_dir, f'{experiment_name}_upload_package.nc'))
-    #     wandb.save(osp.join(cfg.work_dir, f'{experiment_name}_upload_package.nc'))
+    if train_options['save_nc_file']:
+        print('Saving upload_package. Compressing data with zlib.')
+        compression = dict(zlib=True, complevel=1)
+        encoding = {var: compression for var in upload_package.data_vars}
+        upload_package.to_netcdf(osp.join(cfg.work_dir, f'{experiment_name}_{test_name}_upload_package.nc'),
+                                 # f'{osp.splitext(osp.basename(cfg))[0]}
+                                 mode='w', format='netcdf4', engine='h5netcdf', encoding=encoding)
+        print('Testing completed.')
+        print("File saved succesfully at", osp.join(cfg.work_dir, f'{experiment_name}_upload_package.nc'))
+        wandb.save(osp.join(cfg.work_dir, f'{experiment_name}_{test_name}_upload_package.nc'))

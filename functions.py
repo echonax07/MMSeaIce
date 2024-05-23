@@ -29,7 +29,7 @@ from tqdm import tqdm  # Progress bar
 from utils import ICE_STRINGS, GROUP_NAMES
 from unet import UNet, Sep_feat_dif_stages  # Convolutional Neural Network model
 from swin_transformer import SwinTransformer  # Swin Transformer
-
+from r2_replacement import r2_score_random
 
 def chart_cbar(ax, n_classes, chart, cmap='vridis'):
     """
@@ -110,7 +110,51 @@ def r2_metric(true, pred, num_classes=None):
         The calculated r2 score.
 
     """
-    r2 = r2_score(preds=pred, target=true)
+    if (not len(pred)==0) and (not len(true)==0):
+        r2 = r2_score(preds=pred, target=true)
+    else:
+        r2 = torch.tensor(float("nan"))
+
+    return r2
+
+
+def r2_metric_rand(true, pred, num_classes):
+    """
+    Calculate the r2 metric random.
+
+     where :math:`SS_{res}=\sum_i (y_i - f(x_i))^2` is the sum of residual squares, and
+    :math:`SS_{tot}=\sum_i (y_i_rand-f(x_i)_rand)^2` is total sum of squares. 
+    Where y_i_rand is a random class and f(x_i)_rand is also a random class. 
+    Therefore y_i_rand and f(x_i)_rand are random discrete variables with a uniform discrete distribution. 
+    Calculating SS_tot can be expensive due to number of random number that need to be generated. 
+    Thus instead it is calculated based on the expectation value of (y_rand-f(x)_rand).
+
+    Futhermore, it is expected that all class inside the ground truth go from 0 to N-1
+    where N is the number of classes.  Additionally all predictions should also be bound and go from 
+    0 to N-1. 
+
+
+    Parameters
+    ----------
+    true :
+        ndarray, 1d contains all true pixels. Must by numpy array.
+    pred :
+        ndarray, 1d contains all predicted pixels. Must by numpy array.
+    num_classes :
+        Num of classes in the dataset, this value is not used in this function but used in f1_metric function
+        which requires num_classes argument. The reason it was included here was to keep the same structure.  
+
+
+    Returns
+    -------
+    r2_rand : float
+        The calculated r2 score.
+
+    """
+    if (not len(pred)==0) and not (len(true)==0):
+        r2 = r2_score_random(preds=pred, target=true,num_classes=num_classes)
+    else:
+        r2 = torch.tensor(float("nan"))
 
     return r2
 
@@ -132,7 +176,11 @@ def f1_metric(true, pred, num_classes):
         The calculated f1 score.
 
     """
-    f1 = f1_score(target=true, preds=pred, average='weighted', task='multiclass', num_classes=num_classes)
+
+    if (not len(pred)==0) and (not len(true)==0):
+        f1 = f1_score(target=true, preds=pred, average='weighted', task='multiclass', num_classes=num_classes)
+    else:
+        f1 = torch.tensor(float("nan"))
 
     return f1
 
@@ -140,15 +188,16 @@ def f1_metric(true, pred, num_classes):
 def water_edge_metric(outputs, options):
 
     # Convert ouput into water and not water
+    water_outputs = {}
     for chart in options['charts']:
 
-        outputs[chart] = torch.where(outputs[chart] > 0.0, 1.0, 0.0)
+        water_outputs[chart] = torch.where(outputs[chart] > 0.0, 1.0, 0.0)
 
     # subtract them and absolute
     # perform mean
-    water_edge_accuracy = 1 - torch.mean(torch.abs(outputs[options['charts'][0]]-outputs[options['charts'][1]])
-                                         + torch.abs(outputs[options['charts'][1]]-outputs[options['charts'][2]])
-                                         + torch.abs(outputs[options['charts'][2]]-outputs[options['charts'][0]]))
+    water_edge_accuracy = 1 - torch.mean(torch.abs(water_outputs[options['charts'][0]]-water_outputs[options['charts'][1]])
+                                         + torch.abs(water_outputs[options['charts'][1]]-water_outputs[options['charts'][2]])
+                                         + torch.abs(water_outputs[options['charts'][2]]-water_outputs[options['charts'][0]]))
 
     return water_edge_accuracy
 
@@ -221,7 +270,7 @@ def save_best_model(cfg, train_options: dict, net, optimizer, scheduler, epoch: 
         The epoch number
 
     '''
-    print('saving model....')
+
     config_file_name = os.path.basename(cfg.work_dir)
     # print(config_file_name)
     torch.save(obj={'model_state_dict': net.state_dict(),
@@ -727,6 +776,11 @@ def get_model(train_options, device):
     elif train_options['model_selection'] in ['UNet_sep_dec_mse']:
         from unet import UNet_sep_dec_mse
         net = UNet_sep_dec_mse(options=train_options).to(device)
+    elif train_options['model_selection'] in ['fcn_segmentation']:
+        from fcn_seg import FCN_segmentation
+        net = FCN_segmentation(options=train_options).to(device)
     else:
         raise 'Unknown model selected'
     return net
+
+

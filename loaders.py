@@ -127,7 +127,7 @@ class AI4ArcticChallengeDataset(Dataset):
                         long_array = (long_array - self.options['longitude']['mean'])/self.options['longitude']['std']
 
                         # Interpolate to size of original scene
-                        inter_long_array = torch.nn.functional.interpolate(input=torch.from_numpy(long_array).view((1, 1, lat_array.shape[0], lat_array.shape[1])),
+                        inter_long_array = torch.nn.functional.interpolate(input=torch.from_numpy(long_array).view((1, 1, long_array.shape[0], long_array.shape[1])),
                                                                            size=(scene_size_before_padding[2],
                                                                                  scene_size_before_padding[3]),
                                                                            mode=self.options['loader_upsampling'])

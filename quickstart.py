@@ -49,7 +49,7 @@ import shutil
 from icecream import ic
 import pathlib
 import warnings
-
+import time 
 import numpy as np
 import torch
 from mmcv import Config, mkdir_or_exist
@@ -296,9 +296,13 @@ def train(cfg, train_options, net, device, dataloader_train, dataloader_val, opt
             wandb.run.summary[f"While training/Train Epoch Loss"] = train_loss_epoch
 
             # Save the best model in work_dirs
+            print('saving model locally')
             model_path = save_best_model(cfg, train_options, net, optimizer, scheduler, epoch)
 
-            wandb.save(model_path)
+            if train_options['wandb_save_model']:
+                print('saving model in wandb')
+                wandb.save(model_path)
+
 
     del inf_ys_flat, outputs_flat  # Free memory.
     return model_path
@@ -327,6 +331,7 @@ def create_dataloaders(train_options):
 
 
 def main():
+    start_time = time.time()
     args = parse_args()
     ic(args.config)
     cfg = Config.fromfile(args.config)
@@ -337,7 +342,7 @@ def main():
     id = wandb.util.generate_id()
 
     # Set the seed if not -1
-    if train_options['seed'] != -1 and args.seed == None:
+    if train_options['seed'] != -1 or args.seed != None:
         # set seed for everything
         if args.seed != None:
             seed = int(args.seed)
@@ -349,7 +354,7 @@ def main():
         torch.manual_seed(seed)
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
-        # torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.deterministic = True
         # torch.backends.cudnn.benchmark = False
         # torch.backends.cudnn.enabled = True
         print(f"Seed: {seed}")
@@ -366,11 +371,11 @@ def main():
                                     osp.splitext(osp.basename(args.config))[0])
         else:
             # from utils import run_names
-            run_name = id
             cfg.work_dir = osp.join('./work_dir',
-                                    osp.splitext(osp.basename(args.config))[0], run_name)
+                                    osp.splitext(osp.basename(args.config))[0], id)
 
     ic(cfg.work_dir)
+    ic(id)
     # create work_dir
     mkdir_or_exist(osp.abspath(cfg.work_dir))
     # dump config
@@ -425,7 +430,7 @@ def main():
         wandb.init(name=osp.splitext(osp.basename(args.config))[0], project=args.wandb_project,
                    entity="ai4arctic", config=train_options, id=id, resume="allow")
     else:
-        wandb.init(name=osp.splitext(osp.basename(args.config))[0]+'-'+run_name, group=osp.splitext(osp.basename(args.config))[0], project=args.wandb_project,
+        wandb.init(name=osp.splitext(osp.basename(args.config))[0]+'-'+id, group=osp.splitext(osp.basename(args.config))[0], project=args.wandb_project,
                    entity="ai4arctic", config=train_options, id=id, resume="allow")
 
     # Define the metrics and make them such that they are not added to the summary
@@ -452,6 +457,10 @@ def main():
     # Update Config
     wandb.config['validate_list'] = train_options['validate_list']
 
+    print('------------------------------')
+    print('Validate List:')
+    print(train_options['validate_list'])
+    print('------------------------------')
 
     print('Data setup complete.')
 
@@ -459,6 +468,10 @@ def main():
     # A simple model training loop following by a simple validation loop. Validation is carried out on full scenes,
     #  i.e. no cropping or stitching. If there is not enough space on the GPU, then try to do it on the cpu.
     #  This can be done by using 'net = net.cpu()'.
+
+    start_training_time = time.time()
+    start_training_elapsed_time = start_training_time - start_time
+    print(f'The code took {start_training_elapsed_time} secconds to setup before training')
 
 
     print('-----------------------------------')
@@ -477,13 +490,16 @@ def main():
     print('-----------------------------------')
 
 
+    training_time = time.time()
+    training_elapsed_time = training_time - start_time
+    print(f'The code took {training_elapsed_time} seconds to complete training')
 
     print('-----------------------------------')
     print('Staring Validation with best model')
     print('-----------------------------------')
 
     # this is for valset 1 visualization along with gt
-    test('val', net, checkpoint_path, device, cfg.deepcopy(), train_options['validate_list'], 'Cross Validation')
+    test('val', net, checkpoint_path, device, cfg.deepcopy(), train_options['validate_list'], 'Cross_Validation')
 
 
     print('-----------------------------------')
@@ -491,6 +507,9 @@ def main():
     print('-----------------------------------')
 
 
+    valdiation_time = time.time()
+    validation_elapsed_time = valdiation_time - start_time
+    print(f'The code took {validation_elapsed_time} seconds to complete validation')
 
 
     print('-----------------------------------')
@@ -504,6 +523,9 @@ def main():
     print('Completed testing')
     print('-----------------------------------')
 
+    test_time = time.time()
+    test_elapsed_time = test_time - start_time
+    print(f'The code took {test_elapsed_time} seconds to complete testing')
 
     # finish the wandb run
     wandb.finish()

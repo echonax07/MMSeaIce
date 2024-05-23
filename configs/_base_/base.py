@@ -9,7 +9,7 @@
 @License :   (C)Copyright 2022-2023, VIP Lab
 @Desc    :   None
 '''
-from functions import f1_metric, r2_metric
+from functions import f1_metric, r2_metric, r2_metric_rand
 import torch.nn as nn
 # Charts in the dataset
 CHARTS = ['SIC', 'SOD', 'FLOE']
@@ -131,10 +131,10 @@ train_options = {
     # Which train set is going to be used
     'train_list_path': 'datalists/dataset.json',
     # Which validation set is going to be used
-    'val_path': 'datalists/valset2.json',
+    'val_path': 'datalists/valset.json',
     # Which test set is going to be used
 
-    'test_path': 'datalists/dataset_test_gt_embedded.json',
+    'test_path': 'datalists/dataset_test.json',
 
     'path_to_env': './',
 
@@ -160,10 +160,9 @@ train_options = {
     # If true it compiles the model. This will increase the speed of the model for training and inference. 
     # Needs Pytorch 2 to work.
     'compile_model': False,
-    
-    # ensemble after softmax?
-    # 'ensemble_after_softmax': True,
-    # TODO: Speak with Muhammed different quickstart.py should have different configs.
+
+    # Wandb Save model weights
+    'wandb_save_model': True,
 
     # -- loss options -- #
     'chart_loss': {  # Loss for the task
@@ -328,6 +327,22 @@ train_options = {
             'weight': 1,
         },
     },
+
+    'chart_metric_individual_scenes': {  # Metric functions for each ice parameter and the associated weight.
+        'SIC': {
+            'func': r2_metric_rand,
+            'weight': 2,
+        },
+        'SOD': {
+            'func': f1_metric,
+            'weight': 2,
+        },
+        'FLOE': {
+            'func': f1_metric,
+            'weight': 1,
+        },
+    },
+
     # Number of scenes randomly sampled from train_list to use in validation.
     'num_val_scenes': 10,
 
@@ -405,5 +420,9 @@ train_options = {
         'Random_scale': (1, 1),
         'Cutmix_beta': 1.0,
         'Cutmix_prob': 0,
-    }
+    },
+    
+    #saves in wandb the results of validation and test
+    'save_nc_file': False 
+
 }

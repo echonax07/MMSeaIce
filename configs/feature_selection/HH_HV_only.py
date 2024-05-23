@@ -39,8 +39,8 @@ train_options = {'train_variables': SCENE_VARIABLES,
                  
                  'cross_val_run': True,
                  'p-out': 20,
-                 'compute_classwise_f1score': True,
-                 'plot_confusion_matrix': True,
+                #  'compute_classwise_f1score': True,
+                #  'plot_confusion_matrix': True,
                  'epochs': 60, 
 
                  'optimizer': {

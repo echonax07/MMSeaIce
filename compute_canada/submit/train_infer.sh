@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --nodes 1
-#SBATCH --gpus-per-node=1 # request a GPU
+#SBATCH --gpus-per-node=v100l:1 # request a GPU
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task=12 # change this parameter to 2,4,6,... and increase "--num_workers" accordingly to see the effect on performance
 #SBATCH --mem=128G
-#SBATCH --time=2:00:00
-#SBATCH --output=/home/fer96/projects/def-dclausi/AI4arctic/fer96/ai4arctic_challenge_clean/compute_canada_output/%j.out
-#SBATCH --account=def-ka3scott
+#SBATCH --time=2:30:00
+#SBATCH --output=/home/fer96/projects/def-dclausi/share/ai4arctic/fer96/ai4arctic_challenge_clean/compute_canada_output/%j.out
+#SBATCH --account=def-l44xu-ab
 #SBATCH --mail-user=FernandoComputeCanada@gmail.com
 #SBATCH --mail-type=BEGIN
 #SBATCH --mail-type=END
@@ -18,11 +18,11 @@ module load python/3.10
 
 echo "Loading module done"
 
-source ~/AI4Artic2/bin/activate
+source ~/AI4Artic_2/bin/activate
 
 echo "Activating virtual environment done"
 
-cd $HOME/projects/def-dclausi/AI4arctic/$USER/ai4arctic_challenge_clean/
+cd $HOME/projects/def-dclausi/share/ai4arctic/$USER/ai4arctic_challenge_clean/
 
 
 echo "starting training..."
@@ -31,9 +31,8 @@ echo "starting training..."
 # config_basename=$(basename $config .py) 
 
 
-export WANDB_MODE=offline
-python quickstart.py $1 --wandb-project=$2 --seed=$3
-
+# export WANDB_MODE=offline
+python quickstart.py $1 --wandb-project=$2 
 
 # # the above python script will generate a .env at the workdir/config-name/.env
 # env=./work_dir/$config_basename/.env
